@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>r/all Mobile Viewer</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            reddit: {
+              orange: '#FF4500',
+              darkBg: '#090A0B',
+              darkCard: '#151719',
+              darkHover: '#202327',
+              borderDark: '#2D3137'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    /* Custom scrollbar & smooth scrolling */
+    body {
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .line-clamp-3 {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-reddit-darkBg text-gray-900 dark:text-gray-100 min-h-screen pb-16 transition-colors duration-200">
+
+  <!-- Header Sticky Top Bar -->
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-reddit-darkCard/90 backdrop-blur-md border-b border-gray-200 dark:border-reddit-borderDark px-4 py-2.5">
+    <div class="max-w-md mx-auto flex items-center justify-between gap-2">
+      <!-- Logo & Feed Switcher -->
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-full bg-reddit-orange flex items-center justify-center text-white font-bold text-lg shadow-sm">
+          r/
+        </div>
+        <div>
+          <h1 id="feedTitle" class="font-bold text-base leading-tight flex items-center gap-1">
+            r/all
+            <span class="text-xs font-normal text-reddit-orange bg-orange-500/10 px-1.5 py-0.5 rounded-full">Live</span>
+          </h1>
+          <p class="text-[10px] text-gray-500 dark:text-gray-400">Mobile Web Interface</p>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-1.5">
+        <button onclick="toggleShareModal()" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-reddit-darkHover text-gray-600 dark:text-gray-300 transition-colors" title="Host on GitHub & Share">
+          <i data-lucide="share-2" class="w-5 h-5"></i>
+        </button>
+        <button id="searchToggleBtn" onclick="toggleSearch()" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-reddit-darkHover text-gray-600 dark:text-gray-300 transition-colors" title="Search r/all">
+          <i data-lucide="search" class="w-5 h-5"></i>
+        </button>
+        <button id="themeToggleBtn" onclick="toggleDarkMode()" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-reddit-darkHover text-gray-600 dark:text-gray-300 transition-colors" title="Toggle Theme">
+          <i data-lucide="sun" id="themeIcon" class="w-5 h-5"></i>
+        </button>
+        <button onclick="refreshFeed()" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-reddit-darkHover text-gray-600 dark:text-gray-300 transition-colors" title="Refresh Feed">
+          <i data-lucide="rotate-cw" id="refreshIcon" class="w-5 h-5"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Search Drawer -->
+    <div id="searchDrawer" class="hidden max-w-md mx-auto mt-2 pt-2 border-t border-gray-200 dark:border-reddit-borderDark">
+      <form onsubmit="handleSearch(event)" class="flex gap-2">
+        <input type="text" id="searchInput" placeholder="Search r/all posts..." class="flex-1 bg-gray-100 dark:bg-reddit-darkHover text-sm rounded-xl px-3 py-2 border border-transparent focus:border-reddit-orange focus:outline-none text-gray-900 dark:text-white" />
+        <button type="submit" class="bg-reddit-orange text-white text-sm px-4 py-2 rounded-xl font-medium hover:bg-orange-600 transition-colors">
+          Search
+        </button>
+      </form>
+    </div>
+
+    <!-- Sorting & Filtering Bar -->
+    <div class="max-w-md mx-auto mt-2.5 flex items-center justify-between gap-2 overflow-x-auto hide-scrollbar pb-0.5">
+      <!-- Sort Buttons -->
+      <div class="flex items-center gap-1 bg-gray-200/70 dark:bg-reddit-darkHover/80 p-1 rounded-xl text-xs font-medium">
+        <button onclick="setSort('hot')" id="sort-hot" class="sort-btn px-3 py-1 rounded-lg transition-all bg-white dark:bg-reddit-darkCard text-reddit-orange font-semibold shadow-sm">
+          🔥 Hot
+        </button>
+        <button onclick="setSort('new')" id="sort-new" class="sort-btn px-3 py-1 rounded-lg transition-all text-gray-600 dark:text-gray-400">
+          ✨ New
+        </button>
+        <button onclick="setSort('top')" id="sort-top" class="sort-btn px-3 py-1 rounded-lg transition-all text-gray-600 dark:text-gray-400">
+          🏆 Top
+        </button>
+        <button onclick="setSort('rising')" id="sort-rising" class="sort-btn px-3 py-1 rounded-lg transition-all text-gray-600 dark:text-gray-400">
+          📈 Rising
+        </button>
+      </div>
+
+      <!-- Time Filter Dropdown (Hidden unless Top sort active) -->
+      <div id="timeFilterWrapper" class="hidden">
+        <select id="timeFilter" onchange="setTimeFilter(this.value)" class="bg-gray-200 dark:bg-reddit-darkHover text-gray-800 dark:text-gray-200 text-xs rounded-xl px-2 py-1.5 border-none outline-none cursor-pointer">
+          <option value="day">Today</option>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
+          <option value="all">All Time</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- Custom Feed Filter Pill / Banner (When Filtered/Searching) -->
+  <div id="activeFilterBanner" class="hidden max-w-md mx-auto px-4 mt-3">
+    <div class="bg-orange-500/10 border border-orange-500/20 rounded-xl px-3 py-2 flex items-center justify-between text-xs text-reddit-orange">
+      <span id="activeFilterText">Viewing search results</span>
+      <button onclick="clearCustomFilter()" class="font-bold underline hover:opacity-80">Reset to r/all</button>
+    </div>
+  </div>
+
+  <!-- Main Feed Container -->
+  <main class="max-w-md mx-auto px-2 sm:px-4 py-3">
+    <!-- Posts Container -->
+    <div id="postsContainer" class="space-y-3">
+      <!-- Skeleton Loading State -->
+      <div id="skeletonLoader" class="space-y-3">
+        <script>
+          document.write(Array(3).fill(`
+            <div class="bg-white dark:bg-reddit-darkCard rounded-2xl p-4 border border-gray-200 dark:border-reddit-borderDark animate-pulse space-y-3">
+              <div class="flex items-center gap-2">
+                <div class="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-700"></div>
+                <div class="h-3 w-28 bg-gray-300 dark:bg-gray-700 rounded"></div>
+              </div>
+              <div class="h-4 w-5/6 bg-gray-300 dark:bg-gray-700 rounded"></div>
+              <div class="h-4 w-2/3 bg-gray-300 dark:bg-gray-700 rounded"></div>
+              <div class="h-48 w-full bg-gray-300 dark:bg-gray-700 rounded-xl"></div>
+              <div class="flex justify-between pt-2">
+                <div class="h-6 w-16 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+                <div class="h-6 w-16 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
+              </div>
+            </div>
+          `).join(''));
+        </script>
+      </div>
+    </div>
+
+    <!-- Load More / Spinner Indicator -->
+    <div id="loadMoreContainer" class="py-6 text-center">
+      <button id="loadMoreBtn" onclick="fetchPosts(true)" class="hidden w-full py-3 bg-white dark:bg-reddit-darkCard border border-gray-200 dark:border-reddit-borderDark rounded-2xl font-semibold text-sm text-gray-700 dark:text-gray-300 shadow-sm active:scale-[0.99] transition-transform">
+        Load More Posts
+      </button>
+      <div id="infiniteSpinner" class="hidden flex justify-center items-center gap-2 text-sm text-gray-500">
+        <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-reddit-orange"></i>
+        <span>Fetching more of r/all...</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- GITHUB HOSTER GUIDANCE MODAL -->
+  <div id="shareModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-reddit-darkCard w-full max-w-md rounded-3xl p-5 shadow-2xl border border-gray-200 dark:border-reddit-borderDark space-y-4">
+      <div class="flex items-center justify-between border-b border-gray-200 dark:border-reddit-borderDark pb-3">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i data-lucide="github" class="w-5 h-5 text-reddit-orange"></i> Host Free on GitHub Pages
+        </h3>
+        <button onclick="toggleShareModal()" class="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-reddit-darkHover">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="text-xs space-y-3 leading-relaxed text-gray-600 dark:text-gray-300">
+        <p>You can send a working mobile link to your friends by hosting this code on GitHub Pages for free:</p>
+        <ol class="list-decimal pl-4 space-y-2">
+          <li>Create a free account on <a href="https://github.com" target="_blank" class="text-reddit-orange underline">GitHub.com</a>.</li>
+          <li>Create a new public repository named <code class="bg-gray-200 dark:bg-gray-800 px-1 py-0.5 rounded">reddit-mobile</code>.</li>
+          <li>Create a file named <code class="bg-gray-200 dark:bg-gray-800 px-1 py-0.5 rounded">index.html</code> and paste this entire web code into it.</li>
+          <li>Go to <strong>Settings &gt; Pages</strong> in your repository and set the Branch to <strong>main / root</strong>.</li>
+          <li>Within 1 minute, GitHub will give you a link: <br><span class="font-mono text-reddit-orange">https://yourusername.github.io/reddit-mobile</span></li>
+        </ol>
+        <p class="pt-1">Anyone opening that link on their phone will instantly see this clean r/all feed without opening the desktop website or Reddit app!</p>
+      </div>
+
+      <button onclick="toggleShareModal()" class="w-full py-2.5 bg-reddit-orange text-white rounded-xl text-xs font-semibold hover:bg-orange-600 transition-colors">
+        Got it!
+      </button>
+    </div>
+  </div>
+
+  <!-- POST DETAIL & COMMENTS MODAL -->
+  <div id="postModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex flex-col justify-end sm:justify-center p-0 sm:p-4 transition-opacity duration-300">
+    <div class="bg-white dark:bg-reddit-darkCard w-full max-w-lg mx-auto h-[92vh] sm:h-[85vh] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl border border-gray-200 dark:border-reddit-borderDark transform transition-transform">
+      
+      <!-- Modal Header -->
+      <div class="sticky top-0 bg-white dark:bg-reddit-darkCard border-b border-gray-200 dark:border-reddit-borderDark px-4 py-3 flex items-center justify-between z-10">
+        <div class="flex items-center gap-2 overflow-hidden pr-2">
+          <span id="modalSubreddit" class="font-bold text-sm text-reddit-orange truncate">r/all</span>
+          <span class="text-gray-400 text-xs">•</span>
+          <span id="modalAuthor" class="text-xs text-gray-500 truncate">u/user</span>
+        </div>
+        <button onclick="closeModal()" class="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-reddit-darkHover text-gray-500 dark:text-gray-400">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div class="flex-1 overflow-y-auto px-4 py-3 space-y-4 hide-scrollbar">
+        <!-- Post Title -->
+        <h2 id="modalTitle" class="font-bold text-base sm:text-lg leading-snug"></h2>
+
+        <!-- Post Media Container -->
+        <div id="modalMedia" class="rounded-xl overflow-hidden bg-black/5 dark:bg-black/40 min-h-0 flex items-center justify-center"></div>
+
+        <!-- Post Text Content (Self text) -->
+        <div id="modalText" class="text-sm text-gray-700 dark:text-gray-300 space-y-2 whitespace-pre-wrap break-words leading-relaxed hidden"></div>
+
+        <!-- External Link Bar -->
+        <div id="modalExternalLink" class="hidden">
+          <a id="modalExternalAnchor" href="#" target="_blank" rel="noopener" class="flex items-center gap-2 p-3 bg-gray-100 dark:bg-reddit-darkHover rounded-xl text-xs font-medium text-reddit-orange hover:underline break-all">
+            <i data-lucide="external-link" class="w-4 h-4 shrink-0"></i>
+            <span class="truncate" id="modalExternalText">Open external link</span>
+          </a>
+        </div>
+
+        <!-- Post Stats & Reddit Direct Link -->
+        <div class="flex items-center justify-between py-2 border-y border-gray-200 dark:border-reddit-borderDark text-xs text-gray-500 dark:text-gray-400">
+          <div class="flex items-center gap-4">
+            <span id="modalScore" class="flex items-center gap-1 font-semibold text-gray-800 dark:text-gray-200">
+              <i data-lucide="arrow-big-up" class="w-4 h-4 text-reddit-orange"></i> 0
+            </span>
+            <span id="modalCommentCount" class="flex items-center gap-1">
+              <i data-lucide="message-square" class="w-4 h-4"></i> 0 comments
+            </span>
+          </div>
+          <a id="modalRedditLink" href="#" target="_blank" class="flex items-center gap-1 text-reddit-orange font-medium hover:underline">
+            View on Reddit <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+          </a>
+        </div>
+
+        <!-- Comments Section Header -->
+        <div class="pt-1">
+          <h3 class="font-bold text-sm mb-3 flex items-center gap-2">
+            Top Comments
+            <span id="commentsLoading" class="text-xs font-normal text-gray-400 flex items-center gap-1">
+              <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> loading...
+            </span>
+          </h3>
+
+          <!-- Comments Container -->
+          <div id="commentsContainer" class="space-y-3">
+            <!-- Dynamically Populated -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900/90 dark:bg-white/90 text-white dark:text-gray-900 px-4 py-2 rounded-full text-xs font-medium shadow-lg transition-all duration-300 opacity-0 pointer-events-none z-50 flex items-center gap-1.5">
+    <span id="toastMsg">Notification message</span>
+  </div>
+
+  <script>
+    // State Management
+    let currentSort = 'hot';
+    let currentTime = 'day';
+    let currentSubreddit = 'all'; // Default to all
+    let searchQuery = '';
+    let afterToken = '';
+    let isLoading = false;
+    let postsData = [];
+
+    // Initialize App
+    window.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      fetchPosts();
+      lucide.createIcons();
+
+      // Infinite scroll listener
+      window.addEventListener('scroll', () => {
+        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 800) {
+          if (!isLoading && afterToken) {
+            fetchPosts(true);
+          }
+        }
+      });
+    });
+
+    // Theme Management
+    function initTheme() {
+      if (localStorage.getItem('theme') === 'light') {
+        document.documentElement.classList.remove('dark');
+        document.getElementById('themeIcon').setAttribute('data-lucide', 'moon');
+      } else {
+        document.documentElement.classList.add('dark');
+        document.getElementById('themeIcon').setAttribute('data-lucide', 'sun');
+      }
+      lucide.createIcons();
+    }
+
+    function toggleDarkMode() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      const icon = document.getElementById('themeIcon');
+      icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+      lucide.createIcons();
+      showToast(isDark ? 'Dark mode enabled' : 'Light mode enabled');
+    }
+
+    function toggleShareModal() {
+      const modal = document.getElementById('shareModal');
+      modal.classList.toggle('hidden');
+    }
+
+    // Toggle Search Bar
+    function toggleSearch() {
+      const drawer = document.getElementById('searchDrawer');
+      drawer.classList.toggle('hidden');
+      if (!drawer.classList.contains('hidden')) {
+        document.getElementById('searchInput').focus();
+      }
+    }
+
+    // Sorting & Filters
+    function setSort(sort) {
+      if (currentSort === sort && !searchQuery) return;
+      currentSort = sort;
+      
+      // Update UI active buttons
+      document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.className = 'sort-btn px-3 py-1 rounded-lg transition-all text-gray-600 dark:text-gray-400';
+      });
+      const activeBtn = document.getElementById(`sort-${sort}`);
+      if (activeBtn) {
+        activeBtn.className = 'sort-btn px-3 py-1 rounded-lg transition-all bg-white dark:bg-reddit-darkCard text-reddit-orange font-semibold shadow-sm';
+      }
+
+      // Show time filter for 'top'
+      const timeWrapper = document.getElementById('timeFilterWrapper');
+      if (sort === 'top') {
+        timeWrapper.classList.remove('hidden');
+      } else {
+        timeWrapper.classList.add('hidden');
+      }
+
+      refreshFeed();
+    }
+
+    function setTimeFilter(time) {
+      currentTime = time;
+      refreshFeed();
+    }
+
+    function filterBySubreddit(subName) {
+      currentSubreddit = subName.replace(/^r\//, '');
+      searchQuery = '';
+      updateFilterBanner(`Viewing r/${currentSubreddit}`);
+      document.getElementById('feedTitle').innerHTML = `r/${currentSubreddit} <span class="text-xs font-normal text-reddit-orange bg-orange-500/10 px-1.5 py-0.5 rounded-full">Filtered</span>`;
+      refreshFeed();
+    }
+
+    function handleSearch(e) {
+      e.preventDefault();
+      const val = document.getElementById('searchInput').value.trim();
+      if (!val) return;
+      searchQuery = val;
+      updateFilterBanner(`Search results for "${searchQuery}"`);
+      document.getElementById('feedTitle').innerHTML = `r/all <span class="text-xs font-normal text-reddit-orange bg-orange-500/10 px-1.5 py-0.5 rounded-full">Search</span>`;
+      refreshFeed();
+    }
+
+    function clearCustomFilter() {
+      currentSubreddit = 'all';
+      searchQuery = '';
+      document.getElementById('searchInput').value = '';
+      document.getElementById('activeFilterBanner').classList.add('hidden');
+      document.getElementById('feedTitle').innerHTML = `r/all <span class="text-xs font-normal text-reddit-orange bg-orange-500/10 px-1.5 py-0.5 rounded-full">Live</span>`;
+      refreshFeed();
+    }
+
+    function updateFilterBanner(text) {
+      const banner = document.getElementById('activeFilterBanner');
+      document.getElementById('activeFilterText').innerText = text;
+      banner.classList.remove('hidden');
+    }
+
+    function refreshFeed() {
+      afterToken = '';
+      postsData = [];
+      document.getElementById('postsContainer').innerHTML = '';
+      document.getElementById('skeletonLoader').classList.remove('hidden');
+      fetchPosts();
+    }
+
+    // API Data Fetching with Proxy Fallback Strategy
+    async function fetchPosts(isAppend = false) {
+      if (isLoading) return;
+      isLoading = true;
+
+      const spinner = document.getElementById('infiniteSpinner');
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
+      
+      if (isAppend) {
+        spinner.classList.remove('hidden');
+        loadMoreBtn.classList.add('hidden');
+      }
+
+      // Build Reddit API Endpoint
+      let url = '';
+      if (searchQuery) {
+        url = `https://www.reddit.com/r/${currentSubreddit}/search.json?q=${encodeURIComponent(searchQuery)}&sort=${currentSort}&t=${currentTime}&after=${afterToken}&raw_json=1`;
+      } else {
+        url = `https://www.reddit.com/r/${currentSubreddit}/${currentSort}.json?t=${currentTime}&after=${afterToken}&limit=25&raw_json=1`;
+      }
+
+      try {
+        let response;
+        try {
+          response = await fetch(url);
+          if (!response.ok) throw new Error(`Status: ${response.status}`);
+        } catch (directErr) {
+          console.warn('Direct fetch failed, falling back to CORS proxy...', directErr);
+          const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+          response = await fetch(proxyUrl);
+          if (!response.ok) throw new Error(`Proxy status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        afterToken = data.data ? data.data.after : '';
+        const newPosts = data.data && data.data.children ? data.data.children.map(child => child.data) : [];
+        postsData = isAppend ? [...postsData, ...newPosts] : newPosts;
+
+        renderPosts(newPosts, isAppend);
+      } catch (err) {
+        console.error('Error fetching Reddit feed:', err);
+        showToast('Unable to reach Reddit directly.');
+        
+        if (!isAppend && postsData.length === 0) {
+          document.getElementById('postsContainer').innerHTML = `
+            <div class="text-center py-10 bg-white dark:bg-reddit-darkCard rounded-2xl border border-gray-200 dark:border-reddit-borderDark p-6 shadow-sm">
+              <i data-lucide="wifi-off" class="w-10 h-10 mx-auto text-reddit-orange mb-2"></i>
+              <h3 class="font-bold text-gray-800 dark:text-gray-200">Network Error</h3>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-4 leading-relaxed">
+                Could not retrieve Reddit feed. Check your connection or try again.
+              </p>
+              <button onclick="refreshFeed()" class="px-4 py-2 bg-reddit-orange text-white text-xs font-semibold rounded-xl hover:bg-orange-600 transition-colors">
+                Retry Feed
+              </button>
+            </div>
+          `;
+          lucide.createIcons();
+        }
+      } finally {
+        isLoading = false;
+        document.getElementById('skeletonLoader').classList.add('hidden');
+        spinner.classList.add('hidden');
+        if (afterToken) {
+          loadMoreBtn.classList.remove('hidden');
+        } else {
+          loadMoreBtn.classList.add('hidden');
+        }
+        document.getElementById('refreshIcon').classList.remove('animate-spin');
+      }
+    }
+
+    // Render Posts Cards
+    function renderPosts(posts, isAppend) {
+      const container = document.getElementById('postsContainer');
+      
+      if (!isAppend && posts.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 bg-white dark:bg-reddit-darkCard rounded-2xl border border-gray-200 dark:border-reddit-borderDark p-6">
+            <i data-lucide="frown" class="w-12 h-12 mx-auto text-gray-400 mb-2"></i>
+            <h3 class="font-bold text-gray-700 dark:text-gray-300">No posts found</h3>
+            <p class="text-xs text-gray-500 mt-1">Try changing your sort or search terms.</p>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      posts.forEach(post => {
+        const card = document.createElement('article');
+        card.className = "bg-white dark:bg-reddit-darkCard rounded-2xl p-3.5 sm:p-4 border border-gray-200 dark:border-reddit-borderDark shadow-sm hover:border-gray-300 dark:hover:border-gray-700 transition-all cursor-pointer";
+        
+        card.onclick = (e) => {
+          if (!e.target.closest('.no-modal')) {
+            openPostModal(post.id);
+          }
+        };
+
+        const mediaPreview = generateMediaPreview(post);
+        const createdTime = formatTimeAgo(post.created_utc);
+        const formattedScore = formatNumber(post.score);
+        const formattedComments = formatNumber(post.num_comments);
+
+        card.innerHTML = `
+          <!-- Meta Header -->
+          <div class="flex items-center justify-between gap-2 mb-2 text-xs">
+            <div class="flex items-center gap-1.5 overflow-hidden">
+              <button onclick="filterBySubreddit('${post.subreddit}')" class="no-modal font-bold text-reddit-orange hover:underline truncate">
+                r/${post.subreddit}
+              </button>
+              <span class="text-gray-400">•</span>
+              <span class="text-gray-500 dark:text-gray-400 truncate">u/${post.author}</span>
+            </div>
+            <span class="text-gray-400 text-[11px] shrink-0">${createdTime}</span>
+          </div>
+
+          <!-- Post Title -->
+          <h2 class="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100 leading-snug mb-2.5 line-clamp-3">
+            ${escapeHtml(post.title)}
+          </h2>
+
+          <!-- Media Preview Slot -->
+          ${mediaPreview ? `<div class="mb-3 rounded-xl overflow-hidden bg-black/5 dark:bg-black/30">${mediaPreview}</div>` : ''}
+
+          <!-- Card Footer Stats -->
+          <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-1">
+            <div class="flex items-center gap-3">
+              <span class="flex items-center gap-1 font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-reddit-darkHover px-2.5 py-1 rounded-full">
+                <i data-lucide="arrow-big-up" class="w-4 h-4 text-reddit-orange"></i>
+                ${formattedScore}
+              </span>
+              <span class="flex items-center gap-1 bg-gray-100 dark:bg-reddit-darkHover px-2.5 py-1 rounded-full">
+                <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                ${formattedComments}
+              </span>
+            </div>
+
+            <!-- Share / Open Direct -->
+            <a href="https://reddit.com${post.permalink}" target="_blank" onclick="event.stopPropagation()" class="no-modal p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-reddit-darkHover text-gray-400 hover:text-reddit-orange transition-colors" title="Open on Reddit">
+              <i data-lucide="external-link" class="w-4 h-4"></i>
+            </a>
+          </div>
+        `;
+
+        fragment.appendChild(card);
+      });
+
+      container.appendChild(fragment);
+      lucide.createIcons();
+    }
+
+    // Media Preview Generator helper
+    function generateMediaPreview(post) {
+      if (post.url && (post.url.endsWith('.jpg') || post.url.endsWith('.png') || post.url.endsWith('.jpeg') || post.url.endsWith('.gif'))) {
+        return `<img src="${post.url}" loading="lazy" alt="Post thumbnail" class="w-full max-h-96 object-cover rounded-xl" onerror="this.style.display='none'">`;
+      }
+
+      if (post.is_video && post.media && post.media.reddit_video) {
+        return `
+          <video controls preload="metadata" class="w-full max-h-96 rounded-xl bg-black">
+            <source src="${post.media.reddit_video.fallback_url}" type="video/mp4">
+            Your browser does not support video play.
+          </video>
+        `;
+      }
+
+      if (post.preview && post.preview.images && post.preview.images[0]) {
+        const imgUrl = post.preview.images[0].source.url;
+        return `<img src="${imgUrl}" loading="lazy" alt="Preview media" class="w-full max-h-96 object-cover rounded-xl" onerror="this.style.display='none'">`;
+      }
+
+      if (post.thumbnail && post.thumbnail.startsWith('http')) {
+        return `<div class="p-2 flex justify-center bg-gray-50 dark:bg-reddit-darkHover/40"><img src="${post.thumbnail}" loading="lazy" class="max-h-48 object-contain rounded-lg" onerror="this.style.display='none'"></div>`;
+      }
+
+      return '';
+    }
+
+    // POST DETAIL MODAL & COMMENTS
+    async function openPostModal(postId) {
+      const post = postsData.find(p => p.id === postId);
+      if (!post) return;
+
+      document.getElementById('modalSubreddit').innerText = `r/${post.subreddit}`;
+      document.getElementById('modalAuthor').innerText = `u/${post.author}`;
+      document.getElementById('modalTitle').innerText = post.title;
+      document.getElementById('modalScore').innerHTML = `<i data-lucide="arrow-big-up" class="w-4 h-4 text-reddit-orange"></i> ${formatNumber(post.score)}`;
+      document.getElementById('modalCommentCount').innerHTML = `<i data-lucide="message-square" class="w-4 h-4"></i> ${formatNumber(post.num_comments)} comments`;
+      document.getElementById('modalRedditLink').href = `https://reddit.com${post.permalink}`;
+
+      const mediaContainer = document.getElementById('modalMedia');
+      const mediaHtml = generateMediaPreview(post);
+      if (mediaHtml) {
+        mediaContainer.innerHTML = mediaHtml;
+        mediaContainer.classList.remove('hidden');
+      } else {
+        mediaContainer.innerHTML = '';
+        mediaContainer.classList.add('hidden');
+      }
+
+      const textContainer = document.getElementById('modalText');
+      if (post.selftext) {
+        textContainer.innerText = post.selftext;
+        textContainer.classList.remove('hidden');
+      } else {
+        textContainer.innerText = '';
+        textContainer.classList.add('hidden');
+      }
+
+      const extWrapper = document.getElementById('modalExternalLink');
+      const extAnchor = document.getElementById('modalExternalAnchor');
+      const extText = document.getElementById('modalExternalText');
+      if (!post.is_self && post.url && !post.url.includes(post.permalink)) {
+        extAnchor.href = post.url;
+        extText.innerText = post.url;
+        extWrapper.classList.remove('hidden');
+      } else {
+        extWrapper.classList.add('hidden');
+      }
+
+      const modal = document.getElementById('postModal');
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+
+      fetchComments(post.permalink);
+      lucide.createIcons();
+    }
+
+    function closeModal() {
+      document.getElementById('postModal').classList.add('hidden');
+      document.body.style.overflow = 'auto';
+    }
+
+    // Fetch Post Comments
+    async function fetchComments(permalink) {
+      const container = document.getElementById('commentsContainer');
+      const loader = document.getElementById('commentsLoading');
+      
+      container.innerHTML = '';
+      loader.classList.remove('hidden');
+
+      const targetUrl = `https://www.reddit.com${permalink}.json?raw_json=1`;
+
+      try {
+        let response;
+        try {
+          response = await fetch(targetUrl);
+          if (!response.ok) throw new Error('Direct fetch failed');
+        } catch (directErr) {
+          const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+          response = await fetch(proxyUrl);
+        }
+
+        if (!response.ok) throw new Error('Failed comments load');
+        const data = await response.json();
+        
+        const comments = data[1] && data[1].data && data[1].data.children 
+          ? data[1].data.children.map(c => c.data).filter(c => c.body)
+          : [];
+
+        if (comments.length === 0) {
+          container.innerHTML = `<p class="text-xs text-gray-500 py-4 text-center">No comments available for this post.</p>`;
+          return;
+        }
+
+        renderComments(comments, container);
+      } catch (err) {
+        console.error('Comments fetch error:', err);
+        container.innerHTML = `<p class="text-xs text-red-500 py-2 text-center">Unable to load comments.</p>`;
+      } finally {
+        loader.classList.add('hidden');
+      }
+    }
+
+    // Render nested comments
+    function renderComments(commentsList, containerEl, level = 0) {
+      if (level > 2) return; // Limit depth for readability on mobile
+
+      commentsList.forEach(comment => {
+        if (!comment.body) return;
+
+        const commentEl = document.createElement('div');
+        commentEl.className = `p-3 rounded-xl ${level === 0 ? 'bg-gray-50 dark:bg-reddit-darkHover/40 border border-gray-100 dark:border-reddit-borderDark' : 'ml-3 border-l-2 border-gray-200 dark:border-reddit-borderDark pl-2 mt-2'} text-xs space-y-1`;
+
+        const time = formatTimeAgo(comment.created_utc);
+        const score = formatNumber(comment.score);
+
+        commentEl.innerHTML = `
+          <div class="flex items-center justify-between text-gray-500 text-[11px] mb-1">
+            <span class="font-bold text-gray-800 dark:text-gray-300">u/${comment.author || '[deleted]'}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-reddit-orange font-medium">${score} pts</span>
+              <span>${time}</span>
+            </div>
+          </div>
+          <div class="text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">${escapeHtml(comment.body)}</div>
+        `;
+
+        containerEl.appendChild(commentEl);
+
+        // Render replies recursively
+        if (comment.replies && comment.replies.data && comment.replies.data.children) {
+          const replies = comment.replies.data.children.map(c => c.data);
+          renderComments(replies, commentEl, level + 1);
+        }
+      });
+    }
+
+    // Helpers
+    function formatTimeAgo(utcSeconds) {
+      if (!utcSeconds) return '';
+      const seconds = Math.floor(Date.now() / 1000 - utcSeconds);
+      if (seconds < 60) return `${seconds}s`;
+      const minutes = Math.floor(seconds / 60);
+      if (minutes < 60) return `${minutes}m`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h`;
+      const days = Math.floor(hours / 24);
+      return `${days}d`;
+    }
+
+    function formatNumber(num) {
+      if (!num) return '0';
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+      return num.toString();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').innerText = msg;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
